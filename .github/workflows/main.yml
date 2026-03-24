@@ -1,63 +1,47 @@
 name: Fluxer Tracker
 on:
   schedule:
-    - cron: '*/10 * * * *' # Escaneo profundo cada 10 minutos
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 jobs:
-  forensic_scan:
+  precision_scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Deep Analysis of Fluxer Evolution
+      - name: Get Latest Activity
         run: |
-          # 1. Extraer el último cambio detallado
-          RAW_DATA=$(curl -s https://api.github.com/repos/fluxerapp/fluxer/commits/main)
-          MESSAGE=$(echo $RAW_DATA | jq -r '.commit.message')
-          URL=$(echo $RAW_DATA | jq -r '.html_url')
-          AUTHOR=$(echo $RAW_DATA | jq -r '.commit.author.name')
-          
-          # 2. ESCÁNER DE CAMBIOS EN RUTA (Detecta qué parte de la app se tocó)
-          FILES_CHANGED=$(curl -s https://api.github.com/repos/fluxerapp/fluxer/commits/main | jq -r '.files[].filename')
-          
-          # 3. DICCIONARIO DE FILTRADO MASIVO (Cada palabra es un sensor)
-          # Cubre: Chat, Voz, Video, Hosting, Servidores, Temas, UI, Social, Plutonium, Android, iOS, PC, etc.
-          SENSORS="limit|max|size|audio|voice|call|quality|bitrate|video|stream|resolution|ui|theme|css|style|color|icon|font|button|profile|avatar|banner|badge|premium|plutonium|subscription|store|shop|price|market|server|guild|channel|permission|role|invite|social|friend|dm|status|activity|hosting|api|gateway|ws|latency|ping|db|database|storage|android|ios|mobile|desktop|electron|version|build|patch|release|feature|add|implement|update|change|new"
+          # 1. Forzamos que traiga el ULTIMO commit de la rama MAIN específicamente
+          DATA=$(curl -s "https://api.github.com/repos/fluxerapp/fluxer/commits?sha=main&per_page=1")
+          MESSAGE=$(echo $DATA | jq -r '.[0].commit.message')
+          URL=$(echo $DATA | jq -r '.[0].html_url')
+          AUTHOR=$(echo $DATA | jq -r '.[0].commit.author.name')
+          DATE=$(echo $DATA | jq -r '.[0].commit.author.date')
 
-          # 4. LÓGICA DE DETECCIÓN INTELIGENTE
-          # Buscamos en el mensaje del commit O en los archivos modificados
-          if echo "$MESSAGE $FILES_CHANGED" | grep -Ei "$SENSORS"; then
-            
-            # ASIGNACIÓN DE CATEGORÍA Y EMOJI (Personalización visual)
-            CATEGORY="⚙️ CAMBIO GENERAL"
-            [[ "$MESSAGE $FILES_CHANGED" =~ "audio"|"voice"|"call"|"quality" ]] && CATEGORY="📞 SISTEMA DE VOZ/LLAMADAS"
-            [[ "$MESSAGE $FILES_CHANGED" =~ "ui"|"theme"|"css"|"icon"|"style"|"color" ]] && CATEGORY="🎨 ESTÉTICA Y TEMAS"
-            [[ "$MESSAGE $FILES_CHANGED" =~ "chat"|"limit"|"message"|"dm" ]] && CATEGORY="💬 FUNCIONES DE CHAT"
-            [[ "$MESSAGE $FILES_CHANGED" =~ "server"|"guild"|"role"|"channel" ]] && CATEGORY="🏰 GESTIÓN DE SERVIDORES"
-            [[ "$MESSAGE $FILES_CHANGED" =~ "premium"|"plutonium"|"badge"|"store"|"shop" ]] && CATEGORY="💎 ECONOMÍA Y PLUTONIUM"
-            [[ "$MESSAGE $FILES_CHANGED" =~ "android"|"ios"|"mobile" ]] && CATEGORY="📱 APP MÓVIL"
-            [[ "$MESSAGE $FILES_CHANGED" =~ "desktop"|"electron"|"pc" ]] && CATEGORY="💻 APP DE PC"
-            [[ "$MESSAGE $FILES_CHANGED" =~ "hosting"|"api"|"database"|"db"|"gateway" ]] && CATEGORY="🖥️ INFRAESTRUCTURA Y HOSTING"
-            [[ "$MESSAGE $FILES_CHANGED" =~ "friend"|"social"|"status" ]] && CATEGORY="👥 FUNCIONES SOCIALES"
+          # 2. FILTRO DE RELEVANCIA ABSOLUTA
+          KEYWORDS="limit|chat|audio|voice|call|quality|bitrate|video|ui|theme|css|style|color|icon|font|button|profile|avatar|banner|badge|premium|plutonium|store|shop|server|role|channel|social|hosting|api|db|android|pc|desktop|version|add|new|implement"
 
-            # 5. ENVÍO DEL REPORTE DETALLADO
+          if echo "$MESSAGE" | grep -Ei "$KEYWORDS"; then
+            # Convertimos la fecha a algo legible
+            DETECTED_AT=$(date +"%d/%m/%Y %H:%M")
+
             curl -X POST -H "Content-Type: application/json" \
             -d "{
-              \"content\": \"### 🔍 **REPORTE DE MOVIMIENTO: FLUXER**\n\n**Categoría:** $CATEGORY\n**Novedad:** $MESSAGE\n**Autor del cambio:** $AUTHOR\n\n🔗 **Ver evidencia en el código:** $URL\"
+              \"content\": \"🔍 **MOVIMIENTO DETECTADO EN TIEMPO REAL**\n\n**Cambio:** $MESSAGE\n**Fecha original:** $DATE\n**Detectado por el bot:** $DETECTED_AT\n\n🔗 **Evidencia:** $URL\"
             }" \
             https://api.fluxer.app/webhooks/1486111355110249985/4B1moaCXGLLyY0z632AnoiqhZhwiuLfsSlvT58Ez83F01Tb0QFAnrQfnI08VxizT
           fi
 
-      - name: Future Feature Radar (Pull Requests)
+      - name: Real-Time Future Radar
         run: |
-          PR_LIST=$(curl -s https://api.github.com/repos/fluxerapp/fluxer/pulls?state=open)
-          PR_TITLE=$(echo $PR_LIST | jq -r '.[0].title')
-          PR_URL=$(echo $PR_LIST | jq -r '.[0].html_url')
-          PR_LABELS=$(echo $PR_LIST | jq -r '.[0].labels[].name' | tr '\n' ' ')
+          # Traemos solo el Pull Request más reciente que esté ABIERTO ahora mismo
+          PR_DATA=$(curl -s "https://api.github.com/repos/fluxerapp/fluxer/pulls?state=open&sort=created&direction=desc&per_page=1" | jq -r '.[0]')
+          PR_TITLE=$(echo $PR_DATA | jq -r '.title')
+          PR_URL=$(echo $PR_DATA | jq -r '.html_url')
 
           if [ "$PR_TITLE" != "null" ]; then
             curl -X POST -H "Content-Type: application/json" \
             -d "{
-              \"content\": \"✨ **NUEVA FUNCIÓN DETECTADA (Antes de salir)**\n\n**Título:** $PR_TITLE\n**Etiquetas:** $PR_LABELS\n\n🛠️ **Seguimiento técnico:** $PR_URL\"
+              \"content\": \"✨ **NUEVA FUNCIÓN PROPUESTA (MARZO 2026)**\n\n**Título:** $PR_TITLE\n**Link de seguimiento:** $PR_URL\"
             }" \
             https://api.fluxer.app/webhooks/1486111355110249985/4B1moaCXGLLyY0z632AnoiqhZhwiuLfsSlvT58Ez83F01Tb0QFAnrQfnI08VxizT
           fi
