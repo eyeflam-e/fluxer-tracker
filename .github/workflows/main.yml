@@ -1,47 +1,56 @@
 name: Fluxer Tracker
 on:
   schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch:
+    - cron: '*/10 * * * *' # Escanea cada 10 minutos
+  workflow_dispatch: # Botón para probarlo manualmente
 
 jobs:
-  precision_scan:
+  omni_tracker:
     runs-on: ubuntu-latest
     steps:
-      - name: Get Latest Activity
+      - name: Deep Scan Fluxer Movement
         run: |
-          # 1. Forzamos que traiga el ULTIMO commit de la rama MAIN específicamente
-          DATA=$(curl -s "https://api.github.com/repos/fluxerapp/fluxer/commits?sha=main&per_page=1")
-          MESSAGE=$(echo $DATA | jq -r '.[0].commit.message')
-          URL=$(echo $DATA | jq -r '.[0].html_url')
-          AUTHOR=$(echo $DATA | jq -r '.[0].commit.author.name')
-          DATE=$(echo $DATA | jq -r '.[0].commit.author.date')
+          # 1. Capturamos los eventos de actividad real (Push y Commits)
+          EVENT_DATA=$(curl -s "https://api.github.com/repos/fluxerapp/fluxer/events?per_page=1")
+          EVENT_TYPE=$(echo $EVENT_DATA | jq -r '.[0].type')
+          
+          if [ "$EVENT_TYPE" == "PushEvent" ]; then
+            COMMIT_MSG=$(echo $EVENT_DATA | jq -r '.[0].payload.commits[0].message')
+            COMMIT_URL="https://github.com/fluxerapp/fluxer/commit/$(echo $EVENT_DATA | jq -r '.[0].payload.commits[0].sha')"
+            AUTHOR=$(echo $EVENT_DATA | jq -r '.[0].actor.login')
+            
+            # FILTRO TOTAL: Chat, Voz, Video, UI, Temas, Plutonium, Android, PC, Roles, etc.
+            KEYWORDS="limit|chat|audio|voice|call|quality|bitrate|video|stream|ui|theme|css|style|color|icon|font|button|profile|avatar|banner|badge|premium|plutonium|store|shop|price|server|guild|role|channel|social|friend|dm|hosting|api|db|android|pc|desktop|version|build|add|new|implement"
 
-          # 2. FILTRO DE RELEVANCIA ABSOLUTA
-          KEYWORDS="limit|chat|audio|voice|call|quality|bitrate|video|ui|theme|css|style|color|icon|font|button|profile|avatar|banner|badge|premium|plutonium|store|shop|server|role|channel|social|hosting|api|db|android|pc|desktop|version|add|new|implement"
+            if echo "$COMMIT_MSG" | grep -Ei "$KEYWORDS"; then
+              DATE_NOW=$(date +"%d/%m/%Y %H:%M")
+              
+              # Categorización por Emoji
+              EMOJI="⚙️"
+              [[ "$COMMIT_MSG" =~ "audio"|"voice"|"call" ]] && EMOJI="📞"
+              [[ "$COMMIT_MSG" =~ "ui"|"theme"|"icon"|"style" ]] && EMOJI="🎨"
+              [[ "$COMMIT_MSG" =~ "limit"|"chat"|"dm" ]] && EMOJI="💬"
+              [[ "$COMMIT_MSG" =~ "premium"|"plutonium"|"badge"|"shop" ]] && EMOJI="💎"
+              [[ "$COMMIT_MSG" =~ "android"|"pc"|"desktop" ]] && EMOJI="💻"
 
-          if echo "$MESSAGE" | grep -Ei "$KEYWORDS"; then
-            # Convertimos la fecha a algo legible
-            DETECTED_AT=$(date +"%d/%m/%Y %H:%M")
-
-            curl -X POST -H "Content-Type: application/json" \
-            -d "{
-              \"content\": \"🔍 **MOVIMIENTO DETECTADO EN TIEMPO REAL**\n\n**Cambio:** $MESSAGE\n**Fecha original:** $DATE\n**Detectado por el bot:** $DETECTED_AT\n\n🔗 **Evidencia:** $URL\"
-            }" \
-            https://api.fluxer.app/webhooks/1486111355110249985/4B1moaCXGLLyY0z632AnoiqhZhwiuLfsSlvT58Ez83F01Tb0QFAnrQfnI08VxizT
+              curl -X POST -H "Content-Type: application/json" \
+              -d "{
+                \"content\": \"$EMOJI **MOVIMIENTO DETECTADO: FLUXER** (Marzo 2026)\n\n**Novedad:** $COMMIT_MSG\n**Responsable:** $AUTHOR\n**Visto por el bot:** $DATE_NOW\n\n🔗 **Evidencia:** $COMMIT_URL\"
+              }" \
+              https://api.fluxer.app/webhooks/1486111355110249985/4B1moaCXGLLyY0z632AnoiqhZhwiuLfsSlvT58Ez83F01Tb0QFAnrQfnI08VxizT
+            fi
           fi
 
-      - name: Real-Time Future Radar
+      - name: Future Feature Radar
         run: |
-          # Traemos solo el Pull Request más reciente que esté ABIERTO ahora mismo
-          PR_DATA=$(curl -s "https://api.github.com/repos/fluxerapp/fluxer/pulls?state=open&sort=created&direction=desc&per_page=1" | jq -r '.[0]')
+          # Rastreador de funciones que están en discusión/desarrollo ahora mismo
+          PR_DATA=$(curl -s "https://api.github.com/repos/fluxerapp/fluxer/pulls?state=open&sort=updated&direction=desc&per_page=1" | jq -r '.[0]')
           PR_TITLE=$(echo $PR_DATA | jq -r '.title')
           PR_URL=$(echo $PR_DATA | jq -r '.html_url')
 
           if [ "$PR_TITLE" != "null" ]; then
             curl -X POST -H "Content-Type: application/json" \
             -d "{
-              \"content\": \"✨ **NUEVA FUNCIÓN PROPUESTA (MARZO 2026)**\n\n**Título:** $PR_TITLE\n**Link de seguimiento:** $PR_URL\"
+              \"content\": \"✨ **FUNCIÓN EN CAMINO (Exclusiva)**\n\n**Título:** $PR_TITLE\n**Estado:** En desarrollo (Marzo)\n\n🛠️ **Seguimiento:** $PR_URL\"
             }" \
             https://api.fluxer.app/webhooks/1486111355110249985/4B1moaCXGLLyY0z632AnoiqhZhwiuLfsSlvT58Ez83F01Tb0QFAnrQfnI08VxizT
-          fi
